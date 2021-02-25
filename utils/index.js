@@ -24,20 +24,6 @@ export function arratDifference(a, b) {
 	return new Set([...a].filter((x) => !b.has(x)));
 }
 
-// 使用proxy实现简单的观察者模式
-// export function obeservable() {
-// 	const queuedObservers = new Set();
-
-// 	const observe = (fn) => queuedObservers.set(fn);
-// 	const observable = (obj) => new Proxy(obj, { set });
-
-// 	const set = function (target, key, value, receiver) {
-// 		const result = Reflect.set(target, key, value, receiver);
-// 		queuedObservers.forEach((observer) => observer());
-// 		return result;
-//   };
-// }
-
 /**
  * 防抖debounce
  * 当持续触发某事件时，一定时间间隔内没有再触发事件时，事件处理函数才会执行一次，如果设定的时间间隔到来之前，又一次触发了事件，就重新开始延时。
@@ -58,13 +44,25 @@ export function debounce(fn, waitTime = 500) {
  * 节流throttle
  * 当持续触发事件时，有规律的每隔一个时间间隔执行一次事件处理函数。
  */
-export function throttle(fn, delay = 500) {
-	let prev = Date.now();
-	return (...params) => {
-		let now = Date.now();
-		if (now - prev > delay) {
-			fn(...params);
-			prev = Date.now();
+export function throttle(action, delay) {
+	let timeout = null;
+	let lastRun = 0;
+	return function () {
+		if (timeout) {
+			return;
+		}
+		let elapsed = Date.now() - lastRun;
+		let context = this;
+		let args = arguments;
+		let runCallback = function () {
+			lastRun = Date.now();
+			timeout = false;
+			action.apply(context, args);
+		};
+		if (elapsed >= delay) {
+			runCallback();
+		} else {
+			timeout = setTimeout(runCallback, delay);
 		}
 	};
 }
@@ -133,22 +131,46 @@ export const passiveIfSupported = (() => {
 		window.addEventListener(
 			'test',
 			null,
-			new Proxy(
-				{},
-				{
-					get: function (target, propKey) {
-						if (propKey === 'passive') {
-							passiveIfSupported = { passive: true };
-						}
-					},
-				}
-			)
-			// Object.defineProperty({}, 'passive', {
-			// 	get: function () {
-			// 		passiveIfSupported = { passive: true };
-			// 	},
-			// })
+			Object.defineProperty({}, 'passive', {
+				get: function () {
+					passiveIfSupported = { passive: true };
+				},
+			})
 		);
 	} catch (err) {}
 	return passiveIfSupported;
 })();
+
+/**
+ * 获取对象的style属性
+ */
+export const getStyle = (el, prop) => {
+	return typeof getComputedStyle !== 'undefined'
+		? getComputedStyle(el, null).getPropertyValue(prop)
+		: el.style[prop];
+};
+
+/**
+ * 获取浏览器对webp支持情况
+ */
+
+export function supportWebp() {
+	if (!inBrowser) return false;
+
+	let support = true;
+	const d = document;
+
+	try {
+		let el = d.createElement('object');
+		el.type = 'image/webp';
+		el.style.visibility = 'hidden';
+		el.innerHTML = '!';
+		d.body.appendChild(el);
+		support = !el.offsetWidth;
+		d.body.removeChild(el);
+	} catch (err) {
+		support = false;
+	}
+
+	return support;
+}
